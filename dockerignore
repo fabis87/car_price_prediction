@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (excluir raw, procesar en build si es necesario)
+data/raw/vehicles.csv
+
+# Documentación (no necesaria en imagen)
+docs/
+*.md
+!README.md
+
+# Notebooks (no necesarios en producción)
+notebooks/
+
+# Tests
+tests/
+*_test.py
+test_*.py
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
