@@ -25,6 +25,27 @@ services:
     networks:
       - vehicle-network
 
+  # ============================================================================
+  # Dashboard Service
+  # ============================================================================
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: vehicle-price-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src/dashboard:/app/src/dashboard
+      - ./data/processed:/app/data/processed
+    environment:
+      - PYTHONUNBUFFERED=1
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - vehicle-network
 
 # ============================================================================
 # Network Configuration
