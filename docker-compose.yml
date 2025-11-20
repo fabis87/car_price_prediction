@@ -1,0 +1,34 @@
+services:
+  # ============================================================================
+  # API Service
+  # ============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: vehicle-price-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src/api:/app/src/api
+      - ./src/models:/app/src/models
+      - ./data/processed:/app/data/processed
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - vehicle-network
+
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+networks:
+  vehicle-network:
+    driver: bridge
