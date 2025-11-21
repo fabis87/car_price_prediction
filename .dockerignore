@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Datos (no necesarios en producción)
+data/raw/
+data/processed/*.csv
+*.csv
+
+# Pipeline (no necesario en producción)
+src/pipeline/
+
+# Notebooks (no necesarios en producción)
+notebook/
+*.ipynb
+
+# Configuración local
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentación
+*.md
+!README.md
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scripts de desarrollo (no necesarios en producción)
+scripts/
+!scripts/generate_categories.py
+!scripts/generate_eda_data.py
+

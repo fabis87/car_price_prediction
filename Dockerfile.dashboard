@@ -1,23 +1,35 @@
+# ============================================================================
+# STAGE 1: Builder - Instalar dependencias
+# ============================================================================
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Copiar e instalar dependencias
+COPY requirements-dashboard.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --user -r requirements-dashboard.txt
+
+# ============================================================================
+# STAGE 2: Runtime - Imagen final ligera
+# ============================================================================
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
-    && rm -rf /var/lib/apt/lists/*
+# Copiar solo las dependencias instaladas desde el builder
+COPY --from=builder /root/.local /root/.local
 
-# Copiar e instalar dependencias del dashboard
-COPY requirements-dashboard.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-dashboard.txt
+# Asegurar que los scripts en .local sean usables
+ENV PATH=/root/.local/bin:$PATH
 
-# Copiar código del dashboard
+# Copiar solo el código del dashboard
 COPY src/dashboard/ ./src/dashboard/
-COPY data/processed/ ./data/processed/
 
 # Variables de entorno
-ENV PYTHONUNBUFFERED=1
-ENV API_URL=http://api:8000
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    API_URL=http://api:8000
 
 EXPOSE 8501
 

@@ -1,26 +1,41 @@
+# ============================================================================
+# STAGE 1: Builder - Instalar dependencias que requieren compilación
+# ============================================================================
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Instalar herramientas de compilación (solo para build)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar e instalar dependencias
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --user -r requirements-api.txt
+
+# ============================================================================
+# STAGE 2: Runtime - Imagen final ligera
+# ============================================================================
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
+# Copiar solo las dependencias instaladas desde el builder
+COPY --from=builder /root/.local /root/.local
 
-# Copiar e instalar dependencias de la API
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-api.txt
+# Asegurar que los scripts en .local sean usables
+ENV PATH=/root/.local/bin:$PATH
 
-# Copiar código de la API
+# Copiar solo lo necesario para la API
 COPY src/api/ ./src/api/
 COPY src/models/ ./src/models/
-COPY data/processed/ ./data/processed/
 
 # Variables de entorno
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 8000
 
