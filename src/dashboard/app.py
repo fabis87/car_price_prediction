@@ -5,7 +5,6 @@ Consume la API FastAPI para realizar predicciones de precios.
 
 import streamlit as st
 import requests
-import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from typing import Optional
@@ -91,43 +90,46 @@ def predict_price(vehicle_data: dict) -> Optional[dict]:
 # FUNCIONES DE VISUALIZACIÓN EDA
 # ============================================================================
 
-@st.cache_data
-def load_data_for_eda():
-    """Carga datos procesados para EDA."""
+@st.cache_data(ttl=3600)
+def get_eda_stats():
+    """Obtiene datos agregados de EDA desde la API."""
     try:
-        df = pd.read_csv('data/processed/vehicles_with_features.csv')
-        return df
-    except:
+        response = requests.get(f"{API_URL}/vehicles/eda_stats", timeout=10)
+        if response.status_code == 200:
+            return response.json()
+        return None
+    except Exception as e:
+        st.error(f"Error al conectar con la API para EDA: {e}")
         return None
 
 
-def plot_price_by_manufacturer(df, top_n=15):
+def plot_price_by_manufacturer(eda_data, top_n=15):
     """Gráfico: Precio promedio por marca."""
-    top_manufacturers = df.groupby('manufacturer')['price'].mean().sort_values(ascending=False).head(top_n)
+    manufacturers = eda_data['manufacturers']['manufacturers'][:top_n]
+    prices = eda_data['manufacturers']['prices'][:top_n]
     
     fig = px.bar(
-        x=top_manufacturers.values,
-        y=top_manufacturers.index,
+        x=prices,
+        y=manufacturers,
         orientation='h',
         labels={'x': 'Precio Promedio (USD)', 'y': 'Marca'},
         title=f'Top {top_n} Marcas por Precio Promedio',
-        color=top_manufacturers.values,
+        color=prices,
         color_continuous_scale='Viridis'
     )
     fig.update_layout(height=500, showlegend=False)
     return fig
 
 
-def plot_price_by_age(df):
+def plot_price_by_age(eda_data):
     """Gráfico: Curva de depreciación (Precio vs Edad)."""
-    price_by_age = df.groupby('age')['price'].agg(['mean', 'median', 'count']).reset_index()
-    price_by_age = price_by_age[price_by_age['count'] > 100]  # Filtrar edades con pocos datos
+    depreciation = eda_data['depreciation']
     
     fig = go.Figure()
     
     fig.add_trace(go.Scatter(
-        x=price_by_age['age'],
-        y=price_by_age['mean'],
+        x=depreciation['age'],
+        y=depreciation['price_mean'],
         mode='lines+markers',
         name='Precio Promedio',
         line=dict(color='#1f77b4', width=3),
@@ -135,8 +137,8 @@ def plot_price_by_age(df):
     ))
     
     fig.add_trace(go.Scatter(
-        x=price_by_age['age'],
-        y=price_by_age['median'],
+        x=depreciation['age'],
+        y=depreciation['price_median'],
         mode='lines+markers',
         name='Precio Mediano',
         line=dict(color='#ff7f0e', width=2, dash='dash'),
@@ -154,36 +156,49 @@ def plot_price_by_age(df):
     return fig
 
 
-def plot_price_distribution(df):
+def plot_price_distribution(eda_data):
     """Gráfico: Distribución de precios."""
-    fig = px.histogram(
-        df,
-        x='price',
-        nbins=50,
+    distribution = eda_data['price_distribution']
+    
+    fig = px.bar(
+        x=distribution['bins'],
+        y=distribution['counts'],
         title='Distribución de Precios de Vehículos',
-        labels={'price': 'Precio (USD)', 'count': 'Frecuencia'},
+        labels={'x': 'Rango de Precio (USD)', 'y': 'Cantidad de Vehículos'},
         color_discrete_sequence=['#2ca02c']
     )
     fig.update_layout(height=400)
     return fig
 
 
-def plot_price_by_condition(df):
+def plot_price_by_condition(eda_data):
     """Gráfico: Precio por condición."""
-    condition_order = ['salvage', 'fair', 'good', 'excellent', 'like new', 'new']
-    df_filtered = df[df['condition'].isin(condition_order)]
+    condition_data = eda_data['condition']
     
-    fig = px.box(
-        df_filtered,
-        x='condition',
-        y='price',
-        category_orders={'condition': condition_order},
-        title='Distribución de Precios por Condición del Vehículo',
-        labels={'condition': 'Condición', 'price': 'Precio (USD)'},
-        color='condition',
-        color_discrete_sequence=px.colors.qualitative.Set2
+    fig = go.Figure()
+    
+    # Crear box plot manualmente con los datos agregados
+    for i, condition in enumerate(condition_data['conditions']):
+        mean_price = condition_data['price_mean'][i]
+        median_price = condition_data['price_median'][i]
+        
+        # Crear un box plot simplificado usando barras de error
+        fig.add_trace(go.Box(
+            y=[mean_price],
+            name=condition.capitalize(),
+            boxmean='sd',
+            boxpoints=False,
+            marker_color=px.colors.qualitative.Set2[i % len(px.colors.qualitative.Set2)]
+        ))
+    
+    fig.update_layout(
+        title='Precio Promedio por Condición del Vehículo',
+        xaxis_title='Condición',
+        yaxis_title='Precio (USD)',
+        height=400,
+        showlegend=False
     )
-    fig.update_layout(height=400, showlegend=False)
+    
     return fig
 
 
@@ -449,26 +464,27 @@ def main():
         st.header("📊 Análisis Exploratorio de Datos (EDA)")
         st.markdown("Visualizaciones basadas en el dataset de ~250,000 vehículos usados")
         
-        # Cargar datos
-        df = load_data_for_eda()
+        # Obtener datos agregados de la API
+        eda_data = get_eda_stats()
         
-        if df is None:
+        if eda_data is None:
             st.warning("⚠️ No se pudieron cargar los datos para EDA")
-            st.info("Asegúrate de que existe: `data/processed/vehicles_with_features.csv`")
+            st.info("Asegúrate de que la API esté corriendo y tenga el endpoint `/vehicles/eda_stats` disponible.")
             return
         
         # Métricas generales
+        stats = eda_data['general_stats']
         st.subheader("📈 Estadísticas Generales")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Vehículos", f"{len(df):,}")
+            st.metric("Total Vehículos", f"{stats['total_vehicles']:,}")
         with col2:
-            st.metric("Precio Promedio", f"${df['price'].mean():,.2f}")
+            st.metric("Precio Promedio", f"${stats['price_mean']:,.2f}")
         with col3:
-            st.metric("Precio Mediano", f"${df['price'].median():,.2f}")
+            st.metric("Precio Mediano", f"${stats['price_median']:,.2f}")
         with col4:
-            st.metric("Marcas Únicas", f"{df['manufacturer'].nunique()}")
+            st.metric("Marcas Únicas", f"{stats['unique_manufacturers']}")
         
         st.markdown("---")
         
@@ -483,35 +499,35 @@ def main():
         with tab1:
             st.markdown("### Curva de Depreciación")
             st.markdown("Cómo el precio disminuye con la edad del vehículo")
-            fig = plot_price_by_age(df)
+            fig = plot_price_by_age(eda_data)
             st.plotly_chart(fig, use_container_width=True)
             
             st.info("💡 **Insight:** Los vehículos pierden valor rápidamente en los primeros 5 años.")
         
         with tab2:
             st.markdown("### Precio Promedio por Marca")
-            top_n = st.slider("Número de marcas a mostrar", 5, 25, 15, key="top_n_brands")
-            fig = plot_price_by_manufacturer(df, top_n)
+            top_n = st.slider("Número de marcas a mostrar", 5, 20, 15, key="top_n_brands")
+            fig = plot_price_by_manufacturer(eda_data, top_n)
             st.plotly_chart(fig, use_container_width=True)
             
             st.info("💡 **Insight:** Marcas de lujo como Ferrari, Tesla y Porsche tienen los precios más altos.")
         
         with tab3:
             st.markdown("### Distribución de Precios")
-            fig = plot_price_distribution(df)
+            fig = plot_price_distribution(eda_data)
             st.plotly_chart(fig, use_container_width=True)
             
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Precio Mínimo", f"${df['price'].min():,.2f}")
-                st.metric("Percentil 25", f"${df['price'].quantile(0.25):,.2f}")
+                st.metric("Precio Mínimo", f"${stats['price_min']:,.2f}")
+                st.metric("Percentil 25", f"${stats['price_q25']:,.2f}")
             with col2:
-                st.metric("Percentil 75", f"${df['price'].quantile(0.75):,.2f}")
-                st.metric("Precio Máximo", f"${df['price'].max():,.2f}")
+                st.metric("Percentil 75", f"${stats['price_q75']:,.2f}")
+                st.metric("Precio Máximo", f"${stats['price_max']:,.2f}")
         
         with tab4:
             st.markdown("### Precio por Condición del Vehículo")
-            fig = plot_price_by_condition(df)
+            fig = plot_price_by_condition(eda_data)
             st.plotly_chart(fig, use_container_width=True)
             
             st.info("💡 **Insight:** La condición del vehículo es un factor determinante en el precio.")

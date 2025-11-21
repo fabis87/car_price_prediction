@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 from pathlib import Path
-import pandas as pd
+import json
 
 from .models import (
     VehicleFeatures, 
@@ -139,48 +139,35 @@ async def get_categories():
     """
     Obtiene todas las categorías disponibles para los campos del vehículo.
     Útil para poblar los selectboxes y sliders del dashboard.
+    Lee desde categories.json (pre-generado) en lugar del CSV completo.
     
     Returns:
         CategoryOptions con listas de valores válidos para cada campo
     """
     try:
-        # Leer el dataset procesado para obtener las categorías únicas
-        data_path = Path("data/processed/vehicles_with_features.csv")
+        # Leer el archivo JSON pre-generado
+        categories_path = Path("src/models/categories.json")
         
-        if not data_path.exists():
+        if not categories_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Archivo de datos no encontrado"
+                detail="Archivo categories.json no encontrado. Ejecuta scripts/generate_categories.py primero."
             )
         
-        df = pd.read_csv(data_path)
+        with open(categories_path, 'r', encoding='utf-8') as f:
+            categories_dict = json.load(f)
         
-        # Extraer valores únicos de cada columna categórica
-        categories = CategoryOptions(
-            manufacturers=sorted(df['manufacturer'].unique().tolist()),
-            conditions=['salvage', 'fair', 'good', 'excellent', 'like new', 'new'],
-            fuels=sorted(df['fuel'].unique().tolist()),
-            transmissions=sorted(df['transmission'].unique().tolist()),
-            drives=['fwd', 'rwd', '4wd'],
-            types=sorted(df['type'].unique().tolist()),
-            states=sorted(df['state'].unique().tolist()),
-            cylinders_range={
-                'min': int(df['cylinders'].min()),
-                'max': int(df['cylinders'].max())
-            },
-            age_range={
-                'min': int(df['age'].min()),
-                'max': int(df['age'].max())
-            },
-            odometer_range={
-                'min': int(df['odometer'].min()),
-                'max': int(df['odometer'].max())
-            }
-        )
+        categories = CategoryOptions(**categories_dict)
         
-        logger.info("Categorías obtenidas exitosamente")
+        logger.info("Categorías obtenidas exitosamente desde categories.json")
         return categories
         
+    except json.JSONDecodeError as e:
+        logger.error(f"Error al parsear categories.json: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al parsear categories.json: {str(e)}"
+        )
     except Exception as e:
         logger.error(f"Error al obtener categorías: {str(e)}")
         raise HTTPException(
@@ -214,6 +201,50 @@ async def get_model_info():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener información del modelo: {str(e)}"
+        )
+
+
+@app.get("/vehicles/eda_stats")
+async def get_eda_stats():
+    """
+    Obtiene datos agregados para visualizaciones EDA.
+    Lee desde eda_data.json (pre-generado) en lugar del CSV completo.
+    
+    Returns:
+        Diccionario con datos agregados para EDA:
+        - general_stats: Estadísticas generales
+        - depreciation: Datos de depreciación (precio vs edad)
+        - manufacturers: Top marcas por precio
+        - price_distribution: Distribución de precios
+        - condition: Precio por condición
+    """
+    try:
+        # Leer el archivo JSON pre-generado
+        eda_data_path = Path("src/models/eda_data.json")
+        
+        if not eda_data_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Archivo eda_data.json no encontrado. Ejecuta scripts/generate_eda_data.py primero."
+            )
+        
+        with open(eda_data_path, 'r', encoding='utf-8') as f:
+            eda_data = json.load(f)
+        
+        logger.info("Datos EDA obtenidos exitosamente desde eda_data.json")
+        return eda_data
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Error al parsear eda_data.json: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al parsear eda_data.json: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error al obtener datos EDA: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener datos EDA: {str(e)}"
         )
 
 
