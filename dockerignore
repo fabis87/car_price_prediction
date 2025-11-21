@@ -33,8 +33,10 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Data (excluir raw, procesar en build si es necesario)
-data/raw/vehicles.csv
+# Data (excluir todo, solo necesitamos modelos y JSONs)
+data/raw/
+data/processed/*.csv
+*.csv
 
 # Documentación (no necesaria en imagen)
 docs/
@@ -42,7 +44,12 @@ docs/
 !README.md
 
 # Notebooks (no necesarios en producción)
+notebook/
 notebooks/
+*.ipynb
+
+# Pipeline (no necesario en producción)
+src/pipeline/
 
 # Tests
 tests/
